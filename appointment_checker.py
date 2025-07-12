@@ -10,7 +10,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException, StaleElementReferenceException
 
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
@@ -70,9 +70,18 @@ def send_sms(message, recipient):
 
 # --- CHECK APPOINTMENT PAGE FUNCTION ---
 
-def safe_click(wait, xpath):
-    wait.until(EC.element_to_be_clickable((By.XPATH, xpath))).click()
+def safe_click(driver, wait, xpath, retries=2):
+    for _ in range(retries):
+        try:
+            wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
+            wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+            driver.find_element(By.XPATH, xpath).click()
+            return
+        except StaleElementReferenceException:
+            print("[!] Retrying click due to stale element...")
+            time.sleep(1)
 
+            
 def check_appointment():
     options = Options()
     options.add_argument("--headless")
@@ -85,45 +94,47 @@ def check_appointment():
 
     try:
         driver.get("https://appointment.bmeia.gv.at/")
-        wait = WebDriverWait(driver, 20)
+        wait = WebDriverWait(driver, 10)
 
         # STEP 1: Select "KAIRO"
-        office_select = Select(wait.until(EC.presence_of_element_located((By.ID, "Office"))))
-        office_select.select_by_visible_text("KAIRO")
+        wait.until(EC.presence_of_element_located((By.ID, "Office")))
+        Select(driver.find_element(By.ID, "Office")).select_by_visible_text("KAIRO")
         print("[✔] Selected office: KAIRO")
-        safe_click(wait, '//input[@type="submit" and @value="Next"]')
+
+        # Click "Next"
+        safe_click(driver, wait, '//input[@type="submit" and @value="Next"]')
 
         # STEP 2: Select category
         wait.until(EC.presence_of_element_located((By.ID, "CalendarId")))
-        calendar_select = Select(driver.find_element(By.ID, "CalendarId"))
-        calendar_select.select_by_value("20950851")  # Master, PhD
+        Select(driver.find_element(By.ID, "CalendarId")).select_by_value("20950851")
         print("[✔] Selected category: Aufenthaltsbewilligung Student (Master, PhD...)")
-        safe_click(wait, '//input[@type="submit" and @value="Next"]')
 
-        # STEP 3: Number of persons
-        safe_click(wait, '//input[@type="submit" and @value="Next"]')
+        # Click "Next"
+        safe_click(driver, wait, '//input[@type="submit" and @value="Next"]')
+
+        # STEP 3: Skip "number of persons"
+        safe_click(driver, wait, '//input[@type="submit" and @value="Next"]')
 
         # STEP 4: Final confirmation
-        safe_click(wait, '//input[@type="submit" and @value="Next"]')
+        safe_click(driver, wait, '//input[@type="submit" and @value="Next"]')
 
-        # STEP 5: Calendar/slots page
-        wait.until(EC.presence_of_element_located((By.TAG_NAME, "form")))  # wait for form to fully reload
+        # STEP 5: Calendar/slot view
+        time.sleep(2)  # Let dynamic content load
 
-        # Check for appointments more safely
         try:
-            wait.until(EC.presence_of_element_located((By.XPATH, '//input[@name="Start" and @type="radio"]')))
+            driver.find_element(By.XPATH, '//input[@name="Start" and @type="radio"]')
             print("[✔] Appointment FOUND!")
             message = "🚨 Appointment available at the Austrian Embassy in Cairo!\nCheck: https://appointment.bmeia.gv.at/"
             # send_email("📅 Visa Appointment Found!", message, EMAIL)
             # send_email("📅 Visa Appointment Found!", message, EMAIL_2)
-            print("notification sent")
-        except TimeoutException:
+            print("[✔] notification sent")
+        except NoSuchElementException:
             print("[✘] No appointments available.")
 
     except Exception as e:
         print(f"[✖] Error: {e}")
     finally:
-        driver.quit()       
+        driver.quit()
 
 # --- LOOPING TASK ---
 
