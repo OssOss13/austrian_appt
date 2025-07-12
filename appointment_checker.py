@@ -70,6 +70,10 @@ def send_sms(message, recipient):
 
 # --- CHECK APPOINTMENT PAGE FUNCTION ---
 
+def safe_click(wait, xpath):
+    wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
+    wait.until(EC.element_to_be_clickable((By.XPATH, xpath))).click()
+
 def check_appointment():
     options = Options()
     options.add_argument("--headless")
@@ -90,8 +94,8 @@ def check_appointment():
         print("[✔] Selected office: KAIRO")
 
         # Click "Next"
-        next_btn = wait.until(EC.element_to_be_clickable((By.XPATH, '//input[@type="submit" and @value="Next"]')))
-        next_btn.click()
+        safe_click(wait, '//input[@type="submit" and @value="Next"]')
+
 
         # STEP 2: Select master/PhD category
         calendar_select = Select(wait.until(EC.presence_of_element_located((By.ID, "CalendarId"))))
@@ -100,16 +104,16 @@ def check_appointment():
         print("[✔] Selected category: Aufenthaltsbewilligung Student (Master, PhD...)")
 
         # Click "Next"
-        next_btn = wait.until(EC.element_to_be_clickable((By.XPATH, '//input[@type="submit" and @value="Next"]')))
-        next_btn.click()
+        safe_click(wait, '//input[@type="submit" and @value="Next"]')
+
 
         # STEP 3: Skip "number of persons" — click "Next"
-        next_btn = wait.until(EC.element_to_be_clickable((By.XPATH, '//input[@type="submit" and @value="Next"]')))
-        next_btn.click()
+        safe_click(wait, '//input[@type="submit" and @value="Next"]')
+
 
         # STEP 4: Final form — click "Next"
-        next_btn = wait.until(EC.element_to_be_clickable((By.XPATH, '//input[@type="submit" and @value="Next"]')))
-        next_btn.click()
+        safe_click(wait, '//input[@type="submit" and @value="Next"]')
+
 
         # STEP 5: Now we're at the calendar/slots page
         time.sleep(2)  # wait for content to load
