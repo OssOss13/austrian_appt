@@ -16,6 +16,8 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
 
+from datetime import datetime
+import pytz
 
 # Load credentials from .env file
 if os.path.exists(".env"):
@@ -151,11 +153,21 @@ def check_appointment():
 # --- LOOPING TASK ---
 
 if __name__ == "__main__":
+
+    cairo = pytz.timezone("Africa/Cairo")
+    start_time = datetime.now(cairo)
+    print(f"\n[🟢] Script started at: {start_time.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+
+
     start = time.time()
     counter = 0 
-    while time.time() - start < 600:  # Run for 10 minutes  
+    while time.time() - start < (60*60):  # Run for 1 hour  
         print("\n[🔁] Checking for appointments...")
         print(f"[⏳] Attempt #{counter + 1}")
         counter += 1
         check_appointment()
         time.sleep(60)  # wait 1 minute before checking again
+
+    end_time = datetime.now(cairo)
+    print(f"\n[🔴] Script ended at:   {end_time.strftime('%Y-%m-%d %H:%M:%S %Z%z')}")
+
