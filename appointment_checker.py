@@ -2,7 +2,6 @@ import os
 import time
 import smtplib
 import requests
-from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import Select
@@ -12,36 +11,37 @@ from selenium.webdriver.support import expected_conditions as EC
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from selenium.common.exceptions import NoSuchElementException
-# from twilio.rest import Client
+
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
 
 
 # Load credentials from .env file
-load_dotenv()
+if os.path.exists(".env"):
+    from dotenv import load_dotenv
+    load_dotenv()
 
 # Email config
-EMAIL = os.getenv("EMAIL_ADDRESS")
-EMAIL_PASS = os.getenv("EMAIL_PASSWORD")
+EMAIL = os.environ["EMAIL_ADDRESS"] or os.getenv("EMAIL_ADDRESS")
+EMAIL_PASS = os.environ["EMAIL_PASSWORD"] or os.getenv("EMAIL_PASSWORD")
 
-# WhatsApp (Twilio)
-TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-WHATSAPP_FROM = os.getenv("TWILIO_WHATSAPP_FROM")
-WHATSAPP_TO = os.getenv("TWILIO_WHATSAPP_TO")
+EMAIL_2 = os.environ["EMAIL_2_ADDRESS"] or os.getenv("EMAIL_2_ADDRESS")
 
-# client = Client(TWILIO_SID, TWILIO_TOKEN)
+# SMS (Twilio)
+TWILIO_SID = os.environ["TWILIO_ACCOUNT_SID"] or os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_TOKEN = os.environ["TWILIO_AUTH_TOKEN"] or os.getenv("TWILIO_AUTH_TOKEN")    
 
+SMS_FROM = os.environ["TWILIO_SMS_FROM"] or os.getenv("TWILIO_SMS_FROM")
+SMS_TO = os.environ["TWILIO_SMS_TO"] or os.getenv("TWILIO_SMS_TO")
 
-# Telegram
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 # --- NOTIFICATION FUNCTIONS ---
-
-def send_email(subject, message):
+def send_email(subject, message, recipient):
     try:
         msg = MIMEMultipart()
         msg["From"] = EMAIL
-        msg["To"] = EMAIL
+        msg["To"] = recipient
         msg["Subject"] = subject
         msg.attach(MIMEText(message, "plain"))
 
@@ -52,32 +52,21 @@ def send_email(subject, message):
     except Exception as e:
         print(f"[✖] Email failed: {e}")
 
-def send_whatsapp(message):
+
+def send_sms(message, recipient):
     try:
         url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_SID}/Messages.json"
         data = {
-            "From": WHATSAPP_FROM,
-            "To": WHATSAPP_TO,
+            "From": SMS_FROM,  # This should be your Twilio phone number (e.g., "+1234567890")
+            "To": recipient,      # The recipient's phone number
             "Body": message
         }
         response = requests.post(url, data=data, auth=(TWILIO_SID, TWILIO_TOKEN))
         response.raise_for_status()
-        print("[✔] WhatsApp message sent.")
+        print("[✔] SMS message sent.")
     except Exception as e:
-        print(f"[✖] WhatsApp failed: {e}")
+        print(f"[✖] SMS failed: {e}")
 
-def send_telegram(message):
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": message
-        }
-        r = requests.post(url, data=payload)
-        r.raise_for_status()
-        print("[✔] Telegram sent.")
-    except Exception as e:
-        print(f"[✖] Telegram failed: {e}")
 
 # --- CHECK APPOINTMENT PAGE FUNCTION ---
 
@@ -88,8 +77,9 @@ def check_appointment():
     options.add_argument("--disable-dev-shm-usage")
 
     print("[⋯] Launching browser...")
-    driver = webdriver.Chrome(options=options)
-
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
+    
     try:
         driver.get("https://appointment.bmeia.gv.at/")
         wait = WebDriverWait(driver, 10)
@@ -105,8 +95,8 @@ def check_appointment():
 
         # STEP 2: Select master/PhD category
         calendar_select = Select(wait.until(EC.presence_of_element_located((By.ID, "CalendarId"))))
-        calendar_select.select_by_value("44279679")  # Master, PhD, etc.
-        # calendar_select.select_by_value("32528820")  # Famielein...
+        # calendar_select.select_by_value("44279679")  # Master, PhD, etc.
+        calendar_select.select_by_value("20950851")  # osterreicher...
         print("[✔] Selected category: Aufenthaltsbewilligung Student (Master, PhD...)")
 
         # Click "Next"
@@ -130,9 +120,11 @@ def check_appointment():
             driver.find_element(By.XPATH, '//input[@name="Start" and @type="radio"]')
             print("[✔] Appointment FOUND!")
             message = "🚨 Appointment available at the Austrian Embassy in Cairo!\nCheck: https://appointment.bmeia.gv.at/"
-            send_email("📅 Visa Appointment Found!", message)
-            send_whatsapp(message)
-            # send_telegram(message)
+            sms = "Appointment available"
+            send_email("📅 Visa Appointment Found!", message, EMAIL)
+            # send_email("📅 Visa Appointment Found!", message, EMAIL_2)
+
+            # send_sms(sms, SMS_TO)  # Send SMS notification
         except NoSuchElementException:
             print("[✘] No appointments available.")
        
@@ -144,7 +136,11 @@ def check_appointment():
 # --- LOOPING TASK ---
 
 if __name__ == "__main__":
-    # while True:
+    start = time.time()
+    counter = 0 
+    while time.time() - start < 300:  # Run for 5 minutes
         print("\n[🔁] Checking for appointments...")
+        print(f"[⏳] Attempt #{counter + 1}")
+        counter += 1
         check_appointment()
-        # time.sleep(60)  # wait 1 minute before checking again
+        time.sleep(60)  # wait 1 minute before checking again
