@@ -122,7 +122,7 @@ def check_appointment():
             message = "🚨 Appointment available at the Austrian Embassy in Cairo!\nCheck: https://appointment.bmeia.gv.at/"
             sms = "Appointment available"
             send_email("📅 Visa Appointment Found!", message, EMAIL)
-            # send_email("📅 Visa Appointment Found!", message, EMAIL_2)
+            send_email("📅 Visa Appointment Found!", message, EMAIL_2)
 
             # send_sms(sms, SMS_TO)  # Send SMS notification
         except NoSuchElementException:
