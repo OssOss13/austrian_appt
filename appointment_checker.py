@@ -52,7 +52,6 @@ def send_email(subject, message, recipient):
     except Exception as e:
         print(f"[✖] Email failed: {e}")
 
-
 def send_sms(message, recipient):
     try:
         url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_SID}/Messages.json"
@@ -67,9 +66,6 @@ def send_sms(message, recipient):
     except Exception as e:
         print(f"[✖] SMS failed: {e}")
 
-
-# --- CHECK APPOINTMENT PAGE FUNCTION ---
-
 def safe_click(driver, wait, xpath, retries=2):
     for _ in range(retries):
         try:
@@ -81,7 +77,7 @@ def safe_click(driver, wait, xpath, retries=2):
             print("[!] Retrying click due to stale element...")
             time.sleep(1)
 
-            
+# --- CHECK APPOINTMENT PAGE FUNCTION ---          
 def check_appointment():
     options = Options()
     options.add_argument("--headless")
@@ -99,15 +95,18 @@ def check_appointment():
         # STEP 1: Select "KAIRO"
         wait.until(EC.presence_of_element_located((By.ID, "Office")))
         Select(driver.find_element(By.ID, "Office")).select_by_visible_text("KAIRO")
-        print("[✔] Selected office: KAIRO")
+        # print("[✔] Selected office: KAIRO")
 
         # Click "Next"
         safe_click(driver, wait, '//input[@type="submit" and @value="Next"]')
 
-        # STEP 2: Select category
+        # STEP 2: Print cairo and select category
         wait.until(EC.presence_of_element_located((By.ID, "CalendarId")))
-        Select(driver.find_element(By.ID, "CalendarId")).select_by_value("20950851")
-        print("[✔] Selected category: Aufenthaltsbewilligung Student (Master, PhD...)")
+
+        kairo_td = driver.find_element(By.XPATH, '//td[input[@id="Office"]]')
+        print(f"[ℹ] Office Text: {kairo_td.text.strip()}")
+
+        Select(driver.find_element(By.ID, "CalendarId")).select_by_value("44279679")
 
         # Click "Next"
         safe_click(driver, wait, '//input[@type="submit" and @value="Next"]')
@@ -121,12 +120,25 @@ def check_appointment():
         # STEP 5: Calendar/slot view
         time.sleep(2)  # Let dynamic content load
 
+        # Print the H2 header to confirm the category and appointment context
+        try:
+            h2_element = driver.find_element(By.XPATH, '//h2[contains(text(), "Appointments available")]')
+            print(f"[ℹ] Heading: {h2_element.text}")
+        except NoSuchElementException:
+            print("[!] No heading found — might be no appointments or wrong step.")
+
         try:
             driver.find_element(By.XPATH, '//input[@name="Start" and @type="radio"]')
             print("[✔] Appointment FOUND!")
             message = "🚨 Appointment available at the Austrian Embassy in Cairo!\nCheck: https://appointment.bmeia.gv.at/"
-            # send_email("📅 Visa Appointment Found!", message, EMAIL)
-            # send_email("📅 Visa Appointment Found!", message, EMAIL_2)
+            sms = f"Appointment available at the Austrian Embassy"
+            send_email("📅 Visa Appointment Found!", message, EMAIL)
+            send_email("📅 Visa Appointment Found!", message, EMAIL_2)
+            try:
+                send_sms(sms, SMS_TO)
+            except Exception as sms_error:
+                print(f"[✖] SMS failed: {sms_error}")
+
             print("[✔] notification sent")
         except NoSuchElementException:
             print("[✘] No appointments available.")
@@ -141,7 +153,7 @@ def check_appointment():
 if __name__ == "__main__":
     start = time.time()
     counter = 0 
-    while time.time() - start < 300:  # Run for 5 minutes
+    while time.time() - start < 600:  # Run for 10 minutes  
         print("\n[🔁] Checking for appointments...")
         print(f"[⏳] Attempt #{counter + 1}")
         counter += 1
